@@ -5,7 +5,7 @@
 // 
 // Create Date: 10/08/2024 02:51:55 PM
 // Design Name: 
-// Module Name: MUX2to1
+// Module Name: Circuit2
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,6 +20,6 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module MUX2to1(input A, B, S, output out);
+module Circuit2(input A, B, S, output out);
     assign out = (A&~S)|(B&S);
 endmodule
