@@ -20,10 +20,8 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module Circuit3(
-input A,B, output out
-    );
+module Circuit3(input A,B, output out);
     
-    assign out = (A & ~B) | (~A & B);
+    assign out = A^B;
     
 endmodule
