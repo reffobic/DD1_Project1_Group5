@@ -1,0 +1,1 @@
+module DEC4to16(input A, input B, input C, input D, output out);    (~a&c&~d)+ (a&~c&~d) + (b&c&~d);endmodule
