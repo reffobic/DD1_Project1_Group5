@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module Circuit5(input A, B, C, output out);
+module Circuit5(input A, input B, input C, output out);
 
   assign out = ~(A&B) | (B&C);
 
