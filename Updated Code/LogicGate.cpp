@@ -1,10 +1,3 @@
-//
-//  LogicSimulator.cpp
-//  DD1_Project1
-//
-//  Created by Mohamed El-Refai on 23/10/2024.
-//
-
 #include "LogicGate.hpp"
 
 logicGate::logicGate()
@@ -30,122 +23,69 @@ logicGate::logicGate(string n, int d, vector<int> inp, int outp, string type, st
     }
 }
 
-bool logicGate::evaluate(bool &out, vector<ioVar> inputVec, vector<ioVar> wireVec)
+bool logicGate::evaluate(bool& out, vector<ioVar> inputVec, vector<ioVar> wireVec)
 {
+
     updateInputs(inputVec, wireVec);
-    if (gate_type == "and")
-    {
-        for (int i = 0; i < inputs.size(); i++)
-        {
-            if (!inputs[i].val)
-            {
-                output = false;
+
+    if (gate_type == "and") {
+        out = true;
+        for (int i = 0; i < inputs.size(); i++) {
+            if (!inputs[i].val) {
                 out = false;
-                return output;
+                break;
             }
         }
-        output = true;
-        out = true;
-        return output;
     }
-    else if (gate_type == "or")
-    {
-        for (int i = 0; i < inputs.size(); i++)
-        {
-            if (inputs[i].val)
-            {
-                output = true;
+    else if (gate_type == "or") {
+        out = false;
+        for (int i = 0; i < inputs.size(); i++) {
+            if (inputs[i].val) {
                 out = true;
-                return output;
+                break;
             }
         }
-        output = false;
-        out = false;
-        return output;
     }
-    else if (gate_type == "not")
-    {
-        if (inputs[0].val)
-        {
-            output = false;
-            out = false;
-            return false;
-        }
-            
-        output = true;
+    else if (gate_type == "not") {
+        out = !inputs[0].val;
+    }
+    else if (gate_type == "nand") {
         out = true;
-        return output;
-    }
-    else if (gate_type == "nand")
-    {
-        for (int i = 0; i < inputs.size(); i++)
-        {
-            if (!inputs[i].val)
-            {
-                output = true;
+        for (int i = 0; i < inputs.size(); i++) {
+            if (!inputs[i].val) {
                 out = true;
-                return output;
+                return out;
             }
         }
-        output = false;
         out = false;
-        return output;
     }
-    else if (gate_type == "nor")
-    {
-        for (int i = 0; i < inputs.size(); i++)
-        {
-            if (inputs[i].val)
-            {
-                output = false;
-                return output;
+    else if (gate_type == "nor") {
+        out = true;
+        for (int i = 0; i < inputs.size(); i++) {
+            if (inputs[i].val) {
+                out = false;
+                break;
             }
         }
-        output = true;
-        out = true;
-        return output;
     }
-    else if (gate_type == "xor")
-    {
+    else if (gate_type == "xor") {
         int s = 0;
-        for (int i = 0; i < inputs.size(); i++)
-        {
-            if (inputs[i].val)
-                s++;
+        for (int i = 0; i < inputs.size(); i++) {
+            if (inputs[i].val) s++;
         }
-        if (s % 2 == 1)
-        {
-            output = true;
-            out = true;
-            return output;
-        }
-        output = false;
-        out = false;
-        return output;
+        out = (s % 2 == 1);
     }
-    else if (gate_type == "xnor")
-    {
+    else if (gate_type == "xnor") {
         int s = 0;
-        for (int i = 0; i < inputs.size(); i++)
-        {
-            if (inputs[i].val)
-                s++;
+        for (int i = 0; i < inputs.size(); i++) {
+            if (inputs[i].val) s++;
         }
-        if (s % 2 == 1)
-        {
-            output = false;
-            out = false;
-            return output;
-        }
-        output = true;
-        out = true;
-        return output;
+        out = (s % 2 == 0);
     }
     else {
-        output = NULL;
-        out = NULL;
-        return output;
+        return false;
     }
+    return out;
 }
 
 int logicGate::getDelay()
