@@ -29,84 +29,57 @@ Module parseVerilogFile(const string& filename);
 
 int main() {
     int time = 0;
-    string verilogFile = "C:/Users/moham/Videos/Uni/Sem 5 - Fall 2024/Digital Design I/WORK/Circuit4.v";
-    string stimFile = "C:/Users/moham/Videos/Uni/Sem 5 - Fall 2024/Digital Design I/WORK/Circuit4.stim";
+    string verilogFile = "Circuit.v";
+    string stimFile = "Circuit.stim";
 
     ofstream outputFile;
-    outputFile.open("C:/Users/moham/Videos/Uni/Sem 5 - Fall 2024/Digital Design I/WORK/output.sim");
+    outputFile.open("output.sim");
 
     if (!outputFile) {
-        cout << "Error: Could not create output file.\n";
+        return 1;
     }
     else {
         Module module1 = parseVerilogFile(verilogFile);
         queue<event> eventQueue = parseStimFile(stimFile, module1.inputs, module1.wires);
+
+        for (const auto& output : module1.outputs) {
+            outputFile << "0," << output.name << "," << output.val << '\n';
+        }
 
         while (!eventQueue.empty()) {
             event current = eventQueue.front();
             eventQueue.pop();
             time += current.delay;
 
-            int cur = current.affectedVarInd.size();
-            for (int i = 0; i < cur; i++) {
-                ioVar* currentVar = nullptr;
-                int ind = -1;
-
-                ind = current.affectedVarInd[i];
-                if (current.varType[i] == "input")
-                {
-                    if (ind < 0 || ind >= module1.inputs.size())
-                    {
-                        cout << "Error: Invalid index " << ind << " for module1.inputs." << endl;
-                        continue;
-                    }
+            for (int i = 0; i < current.affectedVarInd.size(); i++) {
+                int ind = current.affectedVarInd[i];
+                if (current.varType[i] == "input") {
+                    if (ind < 0 || ind >= module1.inputs.size()) continue;
                     module1.inputs[ind].val = current.newVals[i];
-                    currentVar = &module1.inputs[ind];
-                }
-                else if (current.varType[i] == "wire")
-                {
-                    if (ind < 0 || ind >= module1.wires.size())
-                    {
-                        cout << "Error: Invalid index " << ind << " for module1.wires." << endl;
-                        continue;
-                    }
+                } else if (current.varType[i] == "wire") {
+                    if (ind < 0 || ind >= module1.wires.size()) continue;
                     module1.wires[ind].val = current.newVals[i];
-                    currentVar = &module1.wires[ind];
                 }
+            }
 
-                if (currentVar != nullptr) {
-                    for (int j = 0; j < currentVar->affectedGateInd.size(); j++) {
-                        string t = "";
-                        int x = currentVar->affectedGateInd[j];
-                        int outIndex = module1.gates[x].getOut(t);
-                        if (x < 0 || x >= module1.gates.size()) {
-                            cout << "Error: Invalid gate index " << j << " in module1.gates.\n";
-                            continue;
-                        }
+            for (auto& gate : module1.gates) {
+                string outType;
+                int outIndex = gate.getOut(outType);
 
-                        if (outIndex > -1 && t == "output" && outIndex < module1.outputs.size()) {
-                            module1.gates[x].evaluate(module1.outputs[outIndex].val, module1.inputs, module1.wires);
-                            time += module1.gates[x].getDelay();
-                            outputFile << to_string(time) << ',' << module1.outputs[outIndex].name << ',' << to_string(module1.outputs[outIndex].val) << '\n';
-                        }
-                        else if (outIndex > -1 && t == "wire" && outIndex < module1.wires.size()) {
-                            module1.gates[x].evaluate(module1.wires[outIndex].val, module1.inputs, module1.wires);
-                            current.affectedVarInd.push_back(outIndex);
-                            current.varType.push_back("wire");
-                            current.newVals.push_back(module1.wires[outIndex].val);
-                            cur++;
-                            time += module1.gates[x].getDelay();
-                        }
-                        else {
-                            cout << "Error: outIndex " << outIndex << " is out of bounds for type " << t << endl;
-                            continue;
-                        }
+                if (outType == "output" && outIndex < module1.outputs.size()) {
+                    bool prevVal = module1.outputs[outIndex].val;
+                    gate.evaluate(module1.outputs[outIndex].val, module1.inputs, module1.wires);
+                    if (module1.outputs[outIndex].val != prevVal) {
+                        outputFile << to_string(time) << ',' << module1.outputs[outIndex].name << ',' << to_string(module1.outputs[outIndex].val) << '\n';
                     }
+                } else if (outType == "wire" && outIndex < module1.wires.size()) {
+                    bool prevVal = module1.wires[outIndex].val;
+                    gate.evaluate(module1.wires[outIndex].val, module1.inputs, module1.wires);
                 }
             }
         }
     }
-    cout<<"Simulation complete. Open output.sim file.\n";
+    cout << "Process completed, output file is generated." << endl;
     outputFile.close();
     return 0;
 }
@@ -124,49 +97,39 @@ queue<event> parseStimFile(const string& filename, vector<ioVar> inputs, vector<
     queue<event> events;
     ifstream file(filename);
     string line;
-    regex pattern(R"(#(\d+)\s+([a-zA-Z][a-zA-Z0-9_]*)=(0|1);)");
+    regex delay_pattern(R"(#(\d+))");
+    regex assignment_pattern(R"(([a-zA-Z][a-zA-Z0-9_]*)=(0|1))");
 
     if (file.is_open()) {
         while (getline(file, line)) {
-            smatch match;
-            bool newEvent = true;
+            smatch delay_match;
+            if (!regex_search(line, delay_match, delay_pattern)) continue;
+
+            int delay = stoi(delay_match[1]);
             event currentEvent;
+            currentEvent.delay = delay;
+            currentEvent.affectedVarInd.clear();
+            currentEvent.newVals.clear();
+            currentEvent.varType.clear();
 
-            while (regex_search(line, match, pattern)) {
-                int delay = stoi(match[1]);
-                string variable = match[2];
-                int value = stoi(match[3]);
-
-                if (newEvent) {
-                    currentEvent.delay = delay;
-                    currentEvent.affectedVarInd.clear();
-                    currentEvent.newVals.clear();
-                    currentEvent.varType.clear();
-                    newEvent = false;
-                }
+            auto assignments = sregex_iterator(line.begin(), line.end(), assignment_pattern);
+            for (auto it = assignments; it != sregex_iterator(); ++it) {
+                smatch match = *it;
+                string variable = match[1];
+                int value = stoi(match[2]);
 
                 int ind = findIndex(variable, inputs);
                 if (ind != -1) {
                     currentEvent.affectedVarInd.push_back(ind);
                     currentEvent.varType.push_back("input");
-                    if (value != 0)
-                        currentEvent.newVals.push_back(true);
-                    else
-                        currentEvent.newVals.push_back(false);
+                    currentEvent.newVals.push_back(value == 1);
                 }
-                else {
-                    cout << "Error: Could not find variable " << variable << "\n";
-                }
-
-                line = line.substr(match.position() + match.length());
             }
-            if (!newEvent) {
+
+            if (!currentEvent.affectedVarInd.empty()) {
                 events.push(currentEvent);
             }
         }
-    }
-    else {
-        cout << "Error: could not open stim file.\n";
     }
     file.close();
     return events;
@@ -215,16 +178,12 @@ Module parseVerilogFile(const string& filename) {
 
                 int outInd = findIndex(outName, module1.outputs);
                 string outType = "output";
-                if (outInd == -1) 
-                {
+                if (outInd == -1) {
                     outInd = findIndex(outName, module1.wires);
                     outType = "wire";
                 }
 
-                if (outInd == -1) {
-                    cout << "Error: Could not find output or wire for " << outName << endl;
-                    continue;
-                }
+                if (outInd == -1) continue;
 
                 while (getline(ss, input, ',')) {
                     int ind = findIndex(input, module1.inputs);
@@ -240,9 +199,6 @@ Module parseVerilogFile(const string& filename) {
                             inpTypes.push_back("wire");
                             module1.wires[ind].affectedGateInd.push_back(module1.gates.size());
                         }
-                        else {
-                            cout << "Error: Could not find input or wire for " << input << endl;
-                        }
                     }
                 }
 
@@ -251,9 +207,7 @@ Module parseVerilogFile(const string& filename) {
             }
         }
     }
-    else {
-        cout << "Error: Could not open verilog file.\n";
-    }
     file.close();
+
     return module1;
 }
