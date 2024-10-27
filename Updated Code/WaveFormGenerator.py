@@ -13,11 +13,14 @@ fig, ax = plt.subplots(len(signals), 1, figsize=(10, 2 * len(signals)), sharex=T
 if len(signals) == 1:
     ax = [ax]
 
+# Get the maximum time for extending the signal
+max_time = data["time"].max()
+
 # Create waveforms for each signal
 for i, signal in enumerate(signals):
     signal_data = data[data["signal"] == signal].sort_values("time")
-    time_values = [0] + list(signal_data["time"])
-    level_values = [signal_data["value"].iloc[0]] + list(signal_data["value"])
+    time_values = [0] + list(signal_data["time"]) + [max_time]
+    level_values = [signal_data["value"].iloc[0]] + list(signal_data["value"]) + [signal_data["value"].iloc[-1]]
     
     ax[i].step(time_values, level_values, where="post")
     ax[i].set_ylim(-0.5, 1.5)
