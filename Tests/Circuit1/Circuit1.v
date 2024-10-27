@@ -1,27 +1,13 @@
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 10/14/2024 06:34:24 PM
-// Design Name: 
-// Module Name: Circuit1
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
+module circuit_1(a, b, c, out);
+    input a;
+    input b;
+    input c;
+    output out;
 
+    wire w1;
+    wire w2;
 
-module Circuit1(input A, B, C, output out);
-
-assign out = (A & B) | C ? 1'b0 : 1'b1;
-
+    and #(5) g0 (w1, a, b);
+    or #(5) g1 (w2, w1, c);
+    not #(2) g2 (out, w2);
 endmodule
