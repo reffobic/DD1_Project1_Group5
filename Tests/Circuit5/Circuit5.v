@@ -1,27 +1,14 @@
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 10/14/2024 06:34:24 PM
-// Design Name: 
-// Module Name: Circuit5
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
+module circuit_5(a, b, c, out);
+    input a;
+    input b;
+    input c;
+    output out;
 
+    wire w1;
+    wire w2;
+    wire ab_nand;
 
-module Circuit5(input A, input B, input C, output out);
-
-  assign out = ~(A&B) | (B&C);
-
+    nand #(5) g0 (ab_nand, a, b);
+    or #(5) g1 (out, ab_nand, w2);
+    and #(5) g2 (w2, b, c);
 endmodule
