@@ -1,0 +1,16 @@
+0,sum,0
+0,carry,0
+0,xor_out,0
+100,sum,1
+100,xor_out,1
+300,sum,0
+300,carry,1
+300,xor_out,0
+400,sum,1
+400,carry,0
+400,xor_out,1
+500,sum,0
+500,carry,1
+500,xor_out,0
+700,sum,1
+700,xor_out,1
