@@ -29,16 +29,15 @@ Module parseVerilogFile(const string& filename);
 
 int main() {
     int time = 0;
-    string verilogFile = "Circuit.v";
-    string stimFile = "Circuit.stim";
+    string verilogFile = "/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/Circuit.v";
+    string stimFile = "/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/Circuit.stim";
 
     ofstream outputFile;
-    outputFile.open("output.sim");
+    outputFile.open("/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/output.sim");
 
     if (!outputFile) {
         return 1;
-    }
-    else {
+    } else {
         Module module1 = parseVerilogFile(verilogFile);
         queue<event> eventQueue = parseStimFile(stimFile, module1.inputs, module1.wires);
 
@@ -66,15 +65,21 @@ int main() {
                 string outType;
                 int outIndex = gate.getOut(outType);
 
+                bool previousVal = (outType == "output") ? module1.outputs[outIndex].val : module1.wires[outIndex].val;
+                bool newVal;
+
                 if (outType == "output" && outIndex < module1.outputs.size()) {
-                    bool prevVal = module1.outputs[outIndex].val;
-                    gate.evaluate(module1.outputs[outIndex].val, module1.inputs, module1.wires);
-                    if (module1.outputs[outIndex].val != prevVal) {
-                        outputFile << to_string(time) << ',' << module1.outputs[outIndex].name << ',' << to_string(module1.outputs[outIndex].val) << '\n';
+                    newVal = module1.outputs[outIndex].val;
+                    gate.evaluate(newVal, module1.inputs, module1.wires);
+                    module1.outputs[outIndex].val = newVal;
+
+                    if (newVal != previousVal) {
+                        outputFile << time << ',' << module1.outputs[outIndex].name << ',' << newVal << '\n';
                     }
                 } else if (outType == "wire" && outIndex < module1.wires.size()) {
-                    bool prevVal = module1.wires[outIndex].val;
-                    gate.evaluate(module1.wires[outIndex].val, module1.inputs, module1.wires);
+                    newVal = module1.wires[outIndex].val;
+                    gate.evaluate(newVal, module1.inputs, module1.wires);
+                    module1.wires[outIndex].val = newVal;
                 }
             }
         }
@@ -85,8 +90,11 @@ int main() {
 }
 
 int findIndex(const string& Name, vector<ioVar> vars) {
+    string trimmedName = Name;
+    trimmedName.erase(remove(trimmedName.begin(), trimmedName.end(), ' '), trimmedName.end());
+
     for (int i = 0; i < vars.size(); i++) {
-        if (Name == vars[i].name) {
+        if (trimmedName == vars[i].name) {
             return i;
         }
     }
@@ -108,9 +116,6 @@ queue<event> parseStimFile(const string& filename, vector<ioVar> inputs, vector<
             int delay = stoi(delay_match[1]);
             event currentEvent;
             currentEvent.delay = delay;
-            currentEvent.affectedVarInd.clear();
-            currentEvent.newVals.clear();
-            currentEvent.varType.clear();
 
             auto assignments = sregex_iterator(line.begin(), line.end(), assignment_pattern);
             for (auto it = assignments; it != sregex_iterator(); ++it) {
@@ -145,27 +150,42 @@ Module parseVerilogFile(const string& filename) {
         int output_index = 0;
         int wire_index = 0;
 
-        regex input_regex(R"(input\s+([a-zA-Z_]\w*);)");
-        regex output_regex(R"(output\s+([a-zA-Z_]\w*);)");
-        regex wire_regex(R"(wire\s+([a-zA-Z_]\w*);)");
+        regex input_regex(R"(input\s+([a-zA-Z_]\w*(?:\s*,\s*[a-zA-Z_]\w*)*);)");
+        regex output_regex(R"(output\s+([a-zA-Z_]\w*(?:\s*,\s*[a-zA-Z_]\w*)*);)");
+        regex wire_regex(R"(wire\s+([a-zA-Z_]\w*(?:\s*,\s*[a-zA-Z_]\w*)*);)");
         regex gate_regex(R"((\w+)\s*#\((\d+)\)\s*([a-zA-Z_]\w*)\s*\(([^)]+)\);)");
 
         while (getline(file, line)) {
             smatch match;
 
             if (regex_search(line, match, input_regex)) {
-                ioVar temp{ match[1], false, input_index++ };
-                module1.inputs.push_back(temp);
-            }
-            else if (regex_search(line, match, output_regex)) {
-                ioVar temp{ match[1], false, output_index++ };
-                module1.outputs.push_back(temp);
-            }
-            else if (regex_search(line, match, wire_regex)) {
-                ioVar temp{ match[1], false, wire_index++ };
-                module1.wires.push_back(temp);
-            }
-            else if (regex_search(line, match, gate_regex)) {
+                string inputs = match[1];
+                stringstream ss(inputs);
+                string input;
+                while (getline(ss, input, ',')) {
+                    input.erase(remove(input.begin(), input.end(), ' '), input.end());
+                    ioVar temp{ input, false, input_index++ };
+                    module1.inputs.push_back(temp);
+                }
+            } else if (regex_search(line, match, output_regex)) {
+                string outputs = match[1];
+                stringstream ss(outputs);
+                string output;
+                while (getline(ss, output, ',')) {
+                    output.erase(remove(output.begin(), output.end(), ' '), output.end());
+                    ioVar temp{ output, false, output_index++ };
+                    module1.outputs.push_back(temp);
+                }
+            } else if (regex_search(line, match, wire_regex)) {
+                string wires = match[1];
+                stringstream ss(wires);
+                string wire;
+                while (getline(ss, wire, ',')) {
+                    wire.erase(remove(wire.begin(), wire.end(), ' '), wire.end());
+                    ioVar temp{ wire, false, wire_index++ };
+                    module1.wires.push_back(temp);
+                }
+            } else if (regex_search(line, match, gate_regex)) {
                 string inputs = match[4];
                 stringstream ss(inputs);
                 string input;
@@ -175,6 +195,7 @@ Module parseVerilogFile(const string& filename) {
 
                 getline(ss, input, ',');
                 outName = input;
+                outName.erase(remove(outName.begin(), outName.end(), ' '), outName.end());
 
                 int outInd = findIndex(outName, module1.outputs);
                 string outType = "output";
@@ -186,18 +207,16 @@ Module parseVerilogFile(const string& filename) {
                 if (outInd == -1) continue;
 
                 while (getline(ss, input, ',')) {
+                    input.erase(remove(input.begin(), input.end(), ' '), input.end());
                     int ind = findIndex(input, module1.inputs);
                     if (ind != -1) {
                         inp.push_back(ind);
                         inpTypes.push_back("input");
-                        module1.inputs[ind].affectedGateInd.push_back(module1.gates.size());
-                    }
-                    else {
+                    } else {
                         ind = findIndex(input, module1.wires);
                         if (ind != -1) {
                             inp.push_back(ind);
                             inpTypes.push_back("wire");
-                            module1.wires[ind].affectedGateInd.push_back(module1.gates.size());
                         }
                     }
                 }
