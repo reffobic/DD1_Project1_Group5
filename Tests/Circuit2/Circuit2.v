@@ -1,25 +1,15 @@
-`timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 10/08/2024 02:51:55 PM
-// Design Name: 
-// Module Name: Circuit2
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
+module circuit_2(a, b, s, out);
+    input a;
+    input b;
+    input s;
+    output out;
 
+    wire w1;
+    wire w2;
+    wire s_not;
 
-module Circuit2(input A, B, S, output out);
-    assign out = (A&~S)|(B&S);
+    not #(2) g0 (s_not, s);
+    and #(5) g1 (w1, a, s_not);
+    and #(5) g2 (w2, b, s);
+    or #(5) g3 (out, w1, w2);
 endmodule
