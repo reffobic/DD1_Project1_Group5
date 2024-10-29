@@ -41,8 +41,15 @@ int main() {
         Module module1 = parseVerilogFile(verilogFile);
         queue<event> eventQueue = parseStimFile(stimFile, module1.inputs, module1.wires);
 
+        // Initialize the output file with the initial states of inputs, wires, and outputs
+        for (const auto& input : module1.inputs) {
+            outputFile << "0," << input.name << "," << input.val << '\n';
+        }
         for (const auto& output : module1.outputs) {
             outputFile << "0," << output.name << "," << output.val << '\n';
+        }
+        for (const auto& wire : module1.wires) {
+            outputFile << "0," << wire.name << "," << wire.val << '\n';
         }
 
         while (!eventQueue.empty()) {
@@ -50,17 +57,29 @@ int main() {
             eventQueue.pop();
             time += current.delay;
 
+            // Update inputs based on the event and log changes
             for (int i = 0; i < current.affectedVarInd.size(); i++) {
                 int ind = current.affectedVarInd[i];
                 if (current.varType[i] == "input") {
                     if (ind < 0 || ind >= module1.inputs.size()) continue;
+                    bool previousVal = module1.inputs[ind].val;
                     module1.inputs[ind].val = current.newVals[i];
+                    // Log input change if it differs from the previous value
+                    if (module1.inputs[ind].val != previousVal) {
+                        outputFile << time << "," << module1.inputs[ind].name << "," << module1.inputs[ind].val << '\n';
+                    }
                 } else if (current.varType[i] == "wire") {
                     if (ind < 0 || ind >= module1.wires.size()) continue;
+                    bool previousVal = module1.wires[ind].val;
                     module1.wires[ind].val = current.newVals[i];
+                    // Log wire change if it differs from the previous value
+                    if (module1.wires[ind].val != previousVal) {
+                        outputFile << time << "," << module1.wires[ind].name << "," << module1.wires[ind].val << '\n';
+                    }
                 }
             }
 
+            // Evaluate the gates and log changes for wires and outputs
             for (auto& gate : module1.gates) {
                 string outType;
                 int outIndex = gate.getOut(outType);
@@ -80,6 +99,10 @@ int main() {
                     newVal = module1.wires[outIndex].val;
                     gate.evaluate(newVal, module1.inputs, module1.wires);
                     module1.wires[outIndex].val = newVal;
+
+                    if (newVal != previousVal) {
+                        outputFile << time << ',' << module1.wires[outIndex].name << ',' << newVal << '\n';
+                    }
                 }
             }
         }
@@ -88,6 +111,7 @@ int main() {
     outputFile.close();
     return 0;
 }
+
 
 int findIndex(const string& Name, vector<ioVar> vars) {
     string trimmedName = Name;
@@ -123,6 +147,9 @@ queue<event> parseStimFile(const string& filename, vector<ioVar> inputs, vector<
                 string variable = match[1];
                 int value = stoi(match[2]);
 
+                // Convert variable name to lowercase to ensure case-insensitivity
+                transform(variable.begin(), variable.end(), variable.begin(), ::tolower);
+
                 int ind = findIndex(variable, inputs);
                 if (ind != -1) {
                     currentEvent.affectedVarInd.push_back(ind);
@@ -139,6 +166,7 @@ queue<event> parseStimFile(const string& filename, vector<ioVar> inputs, vector<
     file.close();
     return events;
 }
+
 
 Module parseVerilogFile(const string& filename) {
     Module module1;
