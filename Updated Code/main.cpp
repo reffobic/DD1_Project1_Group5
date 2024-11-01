@@ -9,6 +9,8 @@
 
 using namespace std;
 
+//struct representing modules read from Verilog files
+//each module has inputs, ouputs, wires, and gates
 struct Module {
     vector<ioVar> inputs;
     vector<ioVar> outputs;
@@ -16,6 +18,7 @@ struct Module {
     vector<logicGate> gates;
 };
 
+//struct representing a change in the circuit, read from .stim file
 struct event {
     int delay;
     vector<int> affectedVarInd;
@@ -23,6 +26,7 @@ struct event {
     vector<bool> newVals;
 };
 
+//function that finds index of a variable 
 int findIndex(const string& Name, vector<ioVar> vars);
 queue<event> parseStimFile(const string& filename, vector<ioVar> inputs, vector<ioVar> wires);
 Module parseVerilogFile(const string& filename);
