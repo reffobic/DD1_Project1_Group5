@@ -5,16 +5,15 @@ import pandas as pd
 output_file = "/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/output.sim"
 data = pd.read_csv(output_file, header=None, names=["time", "signal", "value"])
 
-# Extract unique signals
-signals = data["signal"].unique()
-signals_per_page = 5  # Adjust this to control how many signals to display per page
+signals = data["signal"].unique() #Store the name of the signal
+signals_per_page = 5  # To show how many signals are shown each page
 total_pages = (len(signals) + signals_per_page - 1) // signals_per_page  # Calculate total pages
 
 # Create each page of plots
-for page in range(total_pages):
-    start_idx = page * signals_per_page
-    end_idx = min((page + 1) * signals_per_page, len(signals))
-    page_signals = signals[start_idx:end_idx]
+for page in range(total_pages): #to loop in each page
+    start_idx = page * signals_per_page 
+    end_idx = min((page + 1) * signals_per_page, len(signals)) 
+    page_signals = signals[start_idx:end_idx] #select subset of the signals to print
 
     fig, ax = plt.subplots(len(page_signals), 1, figsize=(10, 2 * len(page_signals)), sharex=True)
 
