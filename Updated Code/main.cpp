@@ -7,105 +7,114 @@
 #include <queue>
 #include <vector>
 #include <unordered_map>
+#include <tuple>
+#include <algorithm>
+#include <set>
 
 using namespace std;
 
-//struct representing modules read from Verilog files
-//each module has inputs, ouputs, wires, and gates
+// Struct representing modules read from Verilog files
 struct Module {
-    vector<ioVar> inputs; // stores all the input variables
-    vector<ioVar> outputs; // stores all the output variables
-    vector<ioVar> wires; // stores all the wire variables
-    vector<logicGate> gates; // stores all the gates
+    vector<ioVar> inputs;
+    vector<ioVar> outputs;
+    vector<ioVar> wires;
+    vector<logicGate> gates;
 };
 
-//struct representing a change in the circuit, read from .stim file
+// Struct representing a change in the circuit, read from .stim file
 struct event {
-    int delay; // stores the time the event is triggered in the simulation
-    vector<int> affectedVarInd; // stores all the variables changed in the simulation
-    vector<string> varType; // stores the type of each of the variables changed (input or wire)
-    vector<bool> newVals; // stores the new values of the changed variables
+    int delay;
+    vector<int> affectedVarInd;
+    vector<string> varType;
+    vector<bool> newVals;
 };
 
-
-// Compare class used for the priority queue to create a min heap for event driven simulation
+// Compare class used for priority queue to create a min-heap for event-driven simulation
 class Compare {
-    public:
-       bool operator()(event a, event b){
+public:
+    bool operator()(event a, event b) {
         return a.delay > b.delay;
-      }
+    }
 };
 
-
-int findIndex(const string& Name, vector<ioVar> vars); // declaration of function that finds index of a variable (used for finding the index of a specific input, output, or wire)
-priority_queue<event, vector<event>, Compare> parseStimFile(const string& filename, vector<ioVar> inputs, vector<ioVar> wires); // declaration of function that reads the stim file and generates the event queue
-Module parseVerilogFile(const string& filename); // declaration of function that reads the verilog file and generates the modules
+int findIndex(const string& Name, vector<ioVar> vars);
+priority_queue<event, vector<event>, Compare> parseStimFile(const string& filename, vector<ioVar> inputs, vector<ioVar> wires);
+Module parseVerilogFile(const string& filename);
 
 void propagateGateChange(logicGate& gate, Module& module, int time,
-                         unordered_map<string, bool>& lastKnownStates, ofstream& outputFile,
-                         priority_queue<event, vector<event>, Compare>& eventQueue, event& newWireEvent); // declaration of function used to process events in the gates
-
+                         unordered_map<string, bool>& lastKnownStates,
+                         vector<tuple<int, string, bool>>& outputBuffer,
+                         priority_queue<event, vector<event>, Compare>& eventQueue,
+                         event& newWireEvent,
+                         unordered_map<string, pair<int, bool>>& lastRecorded,
+                         set<pair<int, string>>& existingEntries);
 
 int main() {
-    int time = 0; // initial simulation time starts at 0
-    string verilogFile = "/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/Circuit.v"; // string variable containing the path to the verilog file
-    string stimFile = "/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/Circuit.stim"; // string variable containing the path to the stim file
+    int time = 0;
+    string verilogFile = "/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/Circuit.v";
+    string stimFile = "/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/Circuit.stim";
 
-    // The output file is created and titled "output.sim"
-    ofstream outputFile;
-    outputFile.open("/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/output.sim");
+    ofstream outputFile("/Users/refobic/Documents/DD1/Project1_G5/DD1_Project1_G5/DD1_Project1_G5/output.sim");
 
-    if (!outputFile) { // program is terminated if the file couldn't be found or created
+    if (!outputFile) {
         return 1;
     } else {
-        Module module1 = parseVerilogFile(verilogFile); // a module that takes the module read from the verilog file
-        priority_queue<event, vector<event>, Compare> eventQueue = parseStimFile(stimFile, module1.inputs, module1.wires); // the queue of events from the stim file to be processed
+        Module module1 = parseVerilogFile(verilogFile);
+        priority_queue<event, vector<event>, Compare> eventQueue = parseStimFile(stimFile, module1.inputs, module1.wires);
 
-        // Initialize the output file with the initial states of inputs, wires, and outputs.
+        vector<tuple<int, string, bool>> outputBuffer;
+        unordered_map<string, pair<int, bool>> lastRecorded;
+        unordered_map<string, bool> lastKnownStates;
+        set<pair<int, string>> existingEntries; // Track existing entries by timestamp and variable name
+
+        // Initialize buffer with initial states
         for (const auto& input : module1.inputs) {
-            outputFile << "0," << input.name << "," << input.val << '\n';
+            outputBuffer.emplace_back(0, input.name, input.val);
+            lastRecorded[input.name] = {0, input.val};
+            existingEntries.insert({0, input.name});
         }
         for (const auto& output : module1.outputs) {
-            outputFile << "0," << output.name << "," << output.val << '\n';
+            outputBuffer.emplace_back(0, output.name, output.val);
+            lastRecorded[output.name] = {0, output.val};
+            existingEntries.insert({0, output.name});
         }
         for (const auto& wire : module1.wires) {
-            outputFile << "0," << wire.name << "," << wire.val << '\n';
+            outputBuffer.emplace_back(0, wire.name, wire.val);
+            lastRecorded[wire.name] = {0, wire.val};
+            existingEntries.insert({0, wire.name});
         }
 
-        // Main event processing loop for all inputs and wires
-        unordered_map<string, bool> lastKnownStates; // Track last known states to prevent processing gates when not needed
-
-        while (!eventQueue.empty()) { // Goes through all events read from stim file
+        while (!eventQueue.empty()) {
             event current = eventQueue.top();
             eventQueue.pop();
-            time = current.delay; // updates the time for the next event
+            time = current.delay;
 
-            for (int i = 0; i < current.affectedVarInd.size(); i++) { // loops over all the variables changed in the event
+            for (int i = 0; i < current.affectedVarInd.size(); i++) {
                 int ind = current.affectedVarInd[i];
 
-                // Processes the event for when the variable changed is an input
-                if (current.varType[i] == "input") { 
+                if (current.varType[i] == "input") {
                     bool previousVal = module1.inputs[ind].val;
                     module1.inputs[ind].val = current.newVals[i];
 
-                    // Trigger gates when one of their inputs changes
                     for (auto& gateIdx : module1.inputs[ind].affectedGateInd) {
                         logicGate& gate = module1.gates[gateIdx];
-                        event newWireEvent; // Creates an event which will contain any variables affected if the gate's output changes
-                        propagateGateChange(gate, module1, time, lastKnownStates, outputFile, eventQueue, newWireEvent);
-                        if (!newWireEvent.affectedVarInd.empty()) { // checks that the event contains something, otherwise it will not be pushed
+                        event newWireEvent;
+                        propagateGateChange(gate, module1, time, lastKnownStates, outputBuffer, eventQueue, newWireEvent, lastRecorded, existingEntries);
+                        if (!newWireEvent.affectedVarInd.empty()) {
                             eventQueue.push(newWireEvent);
                         }
                     }
 
-                    // The file is only written to if the input is changed
                     if (module1.inputs[ind].val != previousVal && lastKnownStates[module1.inputs[ind].name] != module1.inputs[ind].val) {
-                        lastKnownStates[module1.inputs[ind].name] = module1.inputs[ind].val; // updates the last known state to avoid processing redundant gates
-                        outputFile << time << "," << module1.inputs[ind].name << "," << module1.inputs[ind].val << '\n';
+                        lastKnownStates[module1.inputs[ind].name] = module1.inputs[ind].val;
+                        if (existingEntries.find({time, module1.inputs[ind].name}) == existingEntries.end()) {
+                            outputBuffer.emplace_back(time, module1.inputs[ind].name, module1.inputs[ind].val);
+                            lastRecorded[module1.inputs[ind].name] = {time, module1.inputs[ind].val};
+                            existingEntries.insert({time, module1.inputs[ind].name});
+                        }
                     }
                 }
 
-                // The code below is identical to the code above for the input condition, however it handles the wires vector in stead of the inputs vector
                 if (current.varType[i] == "wire") {
                     bool previousVal = module1.wires[ind].val;
                     module1.wires[ind].val = current.newVals[i];
@@ -113,7 +122,7 @@ int main() {
                     for (auto& gateIdx : module1.wires[ind].affectedGateInd) {
                         event newWireEvent;
                         logicGate& gate = module1.gates[gateIdx];
-                        propagateGateChange(gate, module1, time, lastKnownStates, outputFile, eventQueue, newWireEvent);
+                        propagateGateChange(gate, module1, time, lastKnownStates, outputBuffer, eventQueue, newWireEvent, lastRecorded, existingEntries);
                         if (!newWireEvent.affectedVarInd.empty()) {
                             eventQueue.push(newWireEvent);
                         }
@@ -121,15 +130,71 @@ int main() {
 
                     if (module1.wires[ind].val != previousVal && lastKnownStates[module1.wires[ind].name] != module1.wires[ind].val) {
                         lastKnownStates[module1.wires[ind].name] = module1.wires[ind].val;
-                        outputFile << time << "," << module1.wires[ind].name << "," << module1.wires[ind].val << '\n';
+                        if (existingEntries.find({time, module1.wires[ind].name}) == existingEntries.end()) {
+                            outputBuffer.emplace_back(time, module1.wires[ind].name, module1.wires[ind].val);
+                            lastRecorded[module1.wires[ind].name] = {time, module1.wires[ind].val};
+                            existingEntries.insert({time, module1.wires[ind].name});
+                        }
                     }
                 }
             }
         }
+
+        // Sort and write unique events
+        sort(outputBuffer.begin(), outputBuffer.end());
+        for (const auto& record : outputBuffer) {
+            outputFile << get<0>(record) << "," << get<1>(record) << "," << get<2>(record) << '\n';
+        }
     }
-    cout << "Process completed, output file is generated." << endl; // Output to tell the user when the simulation is complete
+
+    cout << "Process completed, output file is generated." << endl;
     outputFile.close();
     return 0;
+}
+
+
+void propagateGateChange(logicGate& gate, Module& module, int time,
+                         unordered_map<string, bool>& lastKnownStates,
+                         vector<tuple<int, string, bool>>& outputBuffer,
+                         priority_queue<event, vector<event>, Compare>& eventQueue,
+                         event& newWireEvent,
+                         unordered_map<string, pair<int, bool>>& lastRecorded,
+                         set<pair<int, string>>& existingEntries) { // Added existingEntries here
+    string outType;
+    int outIndex = gate.getOut(outType);
+
+    bool newVal = false;
+    gate.evaluate(newVal, module.inputs, module.wires);
+
+    string varName = (outType == "output") ? module.outputs[outIndex].name : module.wires[outIndex].name;
+
+    if (lastKnownStates[varName] != newVal) {
+        time += gate.getDelay();
+        lastKnownStates[varName] = newVal;
+
+        if (outType == "output" && outIndex < module.outputs.size()) {
+            module.outputs[outIndex].val = newVal;
+            auto entry = make_tuple(time, module.outputs[outIndex].name, newVal);
+            if (existingEntries.find({time, module.outputs[outIndex].name}) == existingEntries.end()) {
+                outputBuffer.push_back(entry);
+                lastRecorded[varName] = {time, newVal};
+                existingEntries.insert({time, module.outputs[outIndex].name});
+            }
+        } else if (outType == "wire" && outIndex < module.wires.size()) {
+            module.wires[outIndex].val = newVal;
+            auto entry = make_tuple(time, module.wires[outIndex].name, newVal);
+            if (existingEntries.find({time, module.wires[outIndex].name}) == existingEntries.end()) {
+                outputBuffer.push_back(entry);
+                lastRecorded[varName] = {time, newVal};
+                existingEntries.insert({time, module.wires[outIndex].name});
+            }
+
+            newWireEvent.delay = time;
+            newWireEvent.affectedVarInd.push_back(outIndex);
+            newWireEvent.varType.push_back("wire");
+            newWireEvent.newVals.push_back(newVal);
+        }
+    }
 }
 
 int findIndex(const string& Name, vector<ioVar> vars) { // function to find the index of a variable using its name. This is to allow the program to handle variables with their index rather than name.
@@ -285,36 +350,4 @@ Module parseVerilogFile(const string& filename) {
 }
 
 
-// Function to process the change of inputs to a gate
-void propagateGateChange(logicGate& gate, Module& module, int time,
-                         unordered_map<string, bool>& lastKnownStates, ofstream& outputFile,
-                         priority_queue<event, vector<event>, Compare>& eventQueue, event& newWireEvent) {
-    string outType; 
-    int outIndex = gate.getOut(outType); // the index and the output type (wire or output) of the gate is fetched from the object
 
-    bool newVal = false;
-    gate.evaluate(newVal, module.inputs, module.wires); // the gate is evaluated and its value is stored
-
-    string varName = (outType == "output") ? module.outputs[outIndex].name : module.wires[outIndex].name; // stores the wire or output name of the gate
-
-    // runs only if the output of the gate changes
-    if (lastKnownStates[varName] != newVal) { 
-        time += gate.getDelay(); // sets the time for a new event to be created from any other affected gates using the delay
-        lastKnownStates[varName] = newVal; // updates the last known state of the gate output
-
-        // Update output file only if there's a change from the last known state
-        if (outType == "output" && outIndex < module.outputs.size()) {
-            module.outputs[outIndex].val = newVal; // updates the value in the module too
-            outputFile << time << "," << module.outputs[outIndex].name << "," << newVal << '\n';
-        } else if (outType == "wire" && outIndex < module.wires.size()) {
-            module.wires[outIndex].val = newVal;
-            outputFile << time << "," << module.wires[outIndex].name << "," << newVal << '\n';
-
-            // Add the current wire to the new event if there are any changes to check if these changes affect other gates
-            newWireEvent.delay = time;
-            newWireEvent.affectedVarInd.push_back(outIndex);
-            newWireEvent.varType.push_back("wire");
-            newWireEvent.newVals.push_back(newVal);
-        }
-    }
-}
